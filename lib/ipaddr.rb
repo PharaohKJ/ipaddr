@@ -39,9 +39,8 @@ require 'socket'
 #
 #   p ipaddr3                   #=> #<IPAddr: IPv4:192.168.2.0/255.255.255.0>
 #
-#   p IPAddr.ipv4_subnet_masks(24) #=> "255.255.255.0"
-#   p IPAddr.ipv6_subnet_masks(64) #=> "ffff:ffff:ffff:ffff:0000:0000:0000:0000"
-#   p IPAddr.new("255.255.255.0").netmask? #=> true
+#   p IPAddr.netmask(24, Socket::AF_INET) #=> "255.255.255.0"
+#   p IPAddr.netmask(64, Socket::AF_INET6) #=> "ffff:ffff:ffff:ffff:0000:0000:0000:0000"
 
 class IPAddr
   # The version string
@@ -131,38 +130,31 @@ class IPAddr
     end
   end
 
-  # Returns the subnet mask string for an IPv4 prefix length.
+  # Returns the subnet mask string for the given prefix length and address family.
   #
-  # Raises InvalidPrefixError if +prefix+ is not an Integer in 0..32.
-  def self.ipv4_subnet_masks(prefix)
+  # +family+ must be Socket::AF_INET for IPv4 or Socket::AF_INET6 for IPv6.
+  # Raises AddressFamilyError if +family+ is unspecified or unsupported.
+  # Raises InvalidPrefixError if +prefix+ is not an Integer in 0..32 for IPv4
+  # or 0..128 for IPv6.
+  def self.netmask(prefix, family = Socket::AF_UNSPEC)
     unless prefix.is_a?(Integer)
       raise InvalidPrefixError, "prefix must be an integer"
     end
-    if prefix < 0 || prefix > 32
+
+    case family
+    when Socket::AF_INET
+      max_prefixlen = 32
+    when Socket::AF_INET6
+      max_prefixlen = 128
+    else
+      raise AddressFamilyError, "address family must be specified"
+    end
+
+    if prefix < 0 || prefix > max_prefixlen
       raise InvalidPrefixError, "invalid length"
     end
 
-    masklen = 32 - prefix
-    mask = ((IN4MASK >> masklen) << masklen)
-    [mask].pack('N').unpack('C4').join('.')
-  end
-
-  # Returns the subnet mask string for an IPv6 prefix length.
-  #
-  # Raises InvalidPrefixError if +prefix+ is not an Integer in 0..128.
-  def self.ipv6_subnet_masks(prefix)
-    unless prefix.is_a?(Integer)
-      raise InvalidPrefixError, "prefix must be an integer"
-    end
-    if prefix < 0 || prefix > 128
-      raise InvalidPrefixError, "invalid length"
-    end
-
-    masklen = 128 - prefix
-    mask = ((IN6MASK >> masklen) << masklen)
-    IN6FORMAT % (0..7).map { |i|
-      (mask >> (112 - 16 * i)) & 0xffff
-    }
+    IPAddr.new(0, family).mask(prefix).netmask
   end
 
   # Returns a new ipaddr built by bitwise AND.
@@ -584,23 +576,6 @@ class IPAddr
   # Returns the netmask in string format e.g. 255.255.0.0
   def netmask
     _to_string(@mask_addr)
-  end
-
-  # Returns true if the ipaddr itself is a valid netmask.
-  #
-  # A valid netmask has contiguous one-bits from the most significant bit
-  # followed by contiguous zero-bits.
-  def netmask?
-    case @family
-    when Socket::AF_INET
-      n = @addr ^ IN4MASK
-      ((n + 1) & n).zero?
-    when Socket::AF_INET6
-      n = @addr ^ IN6MASK
-      ((n + 1) & n).zero?
-    else
-      raise AddressFamilyError, "unsupported address family"
-    end
   end
 
   # Returns the wildcard mask in string format e.g. 0.0.255.255

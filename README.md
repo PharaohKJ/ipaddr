@@ -46,21 +46,18 @@ ipaddr3 = IPAddr.new "192.168.2.0/24"
 p ipaddr3                   #=> #<IPAddr: IPv4:192.168.2.0/255.255.255.0>
 ```
 
-Subnet mask helper methods are also available:
+Use `IPAddr.netmask` to obtain a subnet mask from a prefix length, specifying
+`Socket::AF_INET` for IPv4 or `Socket::AF_INET6` for IPv6:
 
 ```ruby
-IPAddr.ipv4_subnet_masks(24)
+IPAddr.netmask(24, Socket::AF_INET)
 #=> "255.255.255.0"
 
-IPAddr.ipv6_subnet_masks(64)
+IPAddr.netmask(64, Socket::AF_INET6)
 #=> "ffff:ffff:ffff:ffff:0000:0000:0000:0000"
-
-IPAddr.new("255.255.255.0").netmask?
-#=> true
-
-IPAddr.new("192.168.1.1").netmask?
-#=> false
 ```
+
+Omitting the address family raises `IPAddr::AddressFamilyError`.
 
 ## Alternative
 
